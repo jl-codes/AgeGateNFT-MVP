@@ -1,59 +1,60 @@
-pragma solidity ^0.5.0;
+pragma solidity ^0.7.0;
 
-// Import the ERC721 contract for non-fungible tokens
 import "https://github.com/OpenZeppelin/openzeppelin-solidity/contracts/token/ERC721/ERC721.sol";
 
-// Import the Persona contract for age verification
-import "https://github.com/PersonaIdenity/Persona.sol";
+// This contract represents an NFT that can only be minted
+// after a user has completed an age verification process and
+// confirmed to be over 18 years old.
+contract AgeVerifiedNFT is ERC721 {
+    // The minimum age required to mint the NFT
+    uint256 public constant MINIMUM_AGE = 18 years;
 
-// Create a contract for our NFT
-contract MyNFT is ERC721 {
-    // Keep track of the age verification contract
-    Persona public persona;
+    // Event that is triggered when the NFT is minted
+    event Mint(address indexed to, uint256 age);
 
-    // Define an event that is triggered when an NFT is minted
-    event NFTMinted(address owner, uint256 tokenId);
+    // Mapping that stores the age of each user who has minted the NFT
+    mapping(address => uint256) public userAges;
 
-    // Define a constructor that accepts the address of the Persona contract
-    constructor(Persona _persona) public {
-        // Set the Persona contract address
-        persona = _persona;
+    // Modifier that checks if the caller has completed the age verification process
+    // and is over the minimum age
+    modifier onlyAgeVerified {
+        require(
+            userAges[msg.sender] != 0,
+            "Sender has not completed the age verification process"
+        );
+        require(
+            userAges[msg.sender] >= MINIMUM_AGE,
+            "Sender is not old enough to mint the NFT"
+        );
+        _;
     }
 
-    // Define a function that mints an NFT for a given user
-    function mintNFT(address user) public {
-        // Verify that the user has passed the age verification in Persona
-        require(persona.isVerified(user), "User has not passed age verification");
+    // Function that mints the NFT to the caller
+    function mint() public onlyAgeVerified {
+        // Mint the NFT
+        _mint(msg.sender);
 
-        // Mint a new NFT for the user
-        uint256 tokenId = _mint(user);
-
-        // Trigger the NFTMinted event
-        emit NFTMinted(user, tokenId);
+        // Trigger the Mint event
+        emit Mint(msg.sender, userAges[msg.sender]);
     }
 
-    // Override the ERC721 transfer function to prevent transferring burned NFTs
-    function transfer(address to, uint256 tokenId) public {
-        // Check if the NFT has been burned
-        bool burned = isBurned(tokenId);
-        require(!burned, "NFT has been burned and cannot be transferred");
-
-        // Transfer the NFT as usual
-        _transfer(to, tokenId);
+    // Function that sets the age of the caller after they have completed the age verification process
+    function setAge(uint256 age) public {
+        require(age != 0, "Age must not be zero");
+        userAges[msg.sender] = age;
     }
 
-    // Define a function that burns an NFT
-    function burnNFT(uint256 tokenId) public {
-        // Only the owner of the NFT can burn it
-        require(ownerOf(tokenId) == msg.sender, "Only the NFT owner can burn it");
-
-        // Burn the NFT by setting its owner to the zero address
-        _transfer(address(0), tokenId);
-    }
-
-    // Define a function that checks if an NFT has been burned
-    function isBurned(uint256 tokenId) public view returns (bool) {
-        // An NFT is burned if its owner is the zero address
-        return ownerOf(tokenId) == address(0);
+    // Function that burns the NFT if it is sent to another wallet
+    function onERC721Received(
+        address _from,
+        address _to,
+        uint256 _tokenId
+    )
+        public
+        payable
+        returns (bytes memory _data)
+    {
+        // Burn the NFT if it is sent to another wallet
+        _burn(_to, _tokenId);
     }
 }
